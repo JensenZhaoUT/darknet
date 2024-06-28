@@ -1,5 +1,8 @@
+#include <libgen.h> // for basename
+#include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
-
+#include <time.h>
 #include "network.h"
 #include "detection_layer.h"
 #include "cost_layer.h"
@@ -245,7 +248,7 @@ void validate_coco_recall(char *cfgfile, char *weightfile)
     fprintf(stderr, "Learning Rate: %g, Momentum: %g, Decay: %g\n", net.learning_rate, net.momentum, net.decay);
     srand(time(0));
 
-    char *base = "results/comp4_det_test_";
+    // char *base = "results/comp4_det_test_";
     list* plist = get_paths("data/voc/test/2007_test.txt");
     char **paths = (char **)list_to_array(plist);
 
@@ -331,14 +334,69 @@ void validate_coco_recall(char *cfgfile, char *weightfile)
     free(probs);
 }
 
+// void test_coco(char *cfgfile, char *weightfile, char *filename, float thresh)
+// {
+//     image **alphabet = load_alphabet();
+//     network net = parse_network_cfg(cfgfile);
+//     if(weightfile){
+//         load_weights(&net, weightfile);
+//     }
+//     detection_layer l = net.layers[net.n-1];
+//     set_batch_network(&net, 1);
+//     srand(2222222);
+//     float nms = .4;
+//     clock_t time;
+//     char buff[256];
+//     char *input = buff;
+//     int j;
+//     box* boxes = (box*)xcalloc(l.side * l.side * l.n, sizeof(box));
+//     float** probs = (float**)xcalloc(l.side * l.side * l.n, sizeof(float*));
+//     for(j = 0; j < l.side*l.side*l.n; ++j) {
+//       probs[j] = (float*)xcalloc(l.classes, sizeof(float));
+//     }
+//     while(1){
+//         if(filename){
+//             strncpy(input, filename, 256);
+//         } else {
+//             printf("Enter Image Path: ");
+//             fflush(stdout);
+//             input = fgets(input, 256, stdin);
+//             if(!input) break;
+//             strtok(input, "\n");
+//         }
+//         image im = load_image_color(input,0,0);
+//         image sized = resize_image(im, net.w, net.h);
+//         float *X = sized.data;
+//         time=clock();
+//         network_predict(net, X);
+//         printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+//         get_detection_boxes(l, 1, 1, thresh, probs, boxes, 0);
+//         if (nms) do_nms_sort_v2(boxes, probs, l.side*l.side*l.n, l.classes, nms);
+//         draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, coco_classes, alphabet, 80);
+//         save_image(im, "prediction");
+//         show_image(im, "predictions");
+//         free_image(im);
+//         free_image(sized);
+//         free_alphabet(alphabet);
+//         wait_until_press_key_cv();
+//         destroy_all_windows_cv();
+//         if (filename) break;
+//     }
+//     free(boxes);
+//     for(j = 0; j < l.side*l.side*l.n; ++j) {
+//         free(probs[j]);
+//     }
+//     free(probs);
+// }
+
 void test_coco(char *cfgfile, char *weightfile, char *filename, float thresh)
 {
     image **alphabet = load_alphabet();
     network net = parse_network_cfg(cfgfile);
-    if(weightfile){
+    if (weightfile) {
         load_weights(&net, weightfile);
     }
-    detection_layer l = net.layers[net.n-1];
+    detection_layer l = net.layers[net.n - 1];
     set_batch_network(&net, 1);
     srand(2222222);
     float nms = .4;
@@ -346,44 +404,54 @@ void test_coco(char *cfgfile, char *weightfile, char *filename, float thresh)
     char buff[256];
     char *input = buff;
     int j;
-    box* boxes = (box*)xcalloc(l.side * l.side * l.n, sizeof(box));
-    float** probs = (float**)xcalloc(l.side * l.side * l.n, sizeof(float*));
-    for(j = 0; j < l.side*l.side*l.n; ++j) {
-      probs[j] = (float*)xcalloc(l.classes, sizeof(float));
+    box *boxes = (box *)xcalloc(l.side * l.side * l.n, sizeof(box));
+    float **probs = (float **)xcalloc(l.side * l.side * l.n, sizeof(float *));
+    for (j = 0; j < l.side * l.side * l.n; ++j) {
+        probs[j] = (float *)xcalloc(l.classes, sizeof(float));
     }
-    while(1){
-        if(filename){
-            strncpy(input, filename, 256);
+    while (1) {
+        if (filename) {
+            strncpy(input, filename, 255);
+            input[255] = '\0'; // Ensure null-termination
         } else {
             printf("Enter Image Path: ");
             fflush(stdout);
             input = fgets(input, 256, stdin);
-            if(!input) break;
+            if (!input)
+                break;
             strtok(input, "\n");
         }
-        image im = load_image_color(input,0,0);
+        image im = load_image_color(input, 0, 0);
         image sized = resize_image(im, net.w, net.h);
         float *X = sized.data;
-        time=clock();
+        time = clock();
         network_predict(net, X);
-        printf("%s: Predicted in %f seconds.\n", input, sec(clock()-time));
+        printf("%s: Predicted in %f seconds.\n", input, sec(clock() - time));
         get_detection_boxes(l, 1, 1, thresh, probs, boxes, 0);
-        if (nms) do_nms_sort_v2(boxes, probs, l.side*l.side*l.n, l.classes, nms);
-        draw_detections(im, l.side*l.side*l.n, thresh, boxes, probs, coco_classes, alphabet, 80);
-        save_image(im, "prediction");
-        show_image(im, "predictions");
+        if (nms)
+            do_nms_sort_v2(boxes, probs, l.side * l.side * l.n, l.classes, nms);
+        draw_detections(im, l.side * l.side * l.n, thresh, boxes, probs, coco_classes, alphabet, 80);
+
+        // Construct the output path
+        char *base = basename(input); // Get the base name of the file
+        char output_path[300];
+        snprintf(output_path, sizeof(output_path), "./image/%s", base); // Create the output path
+
+        save_image(im, output_path); // Save the image with the new path
+        show_image(im, output_path);
         free_image(im);
         free_image(sized);
-        free_alphabet(alphabet);
         wait_until_press_key_cv();
         destroy_all_windows_cv();
-        if (filename) break;
+        if (filename)
+            break;
     }
     free(boxes);
-    for(j = 0; j < l.side*l.side*l.n; ++j) {
+    for (j = 0; j < l.side * l.side * l.n; ++j) {
         free(probs[j]);
     }
     free(probs);
+    free_alphabet(alphabet);
 }
 
 void run_coco(int argc, char **argv)
